@@ -18,10 +18,12 @@
 
 package org.keycloak.storage.ldap;
 
+import org.jboss.logging.Logger;
 import java.util.List;
 import java.util.function.Function;
 
 import org.keycloak.models.LDAPConstants;
+import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.utils.ReadOnlyUserModelDelegate;
 import org.keycloak.models.utils.UserModelDelegate;
@@ -38,11 +40,15 @@ import org.keycloak.storage.ldap.mappers.LDAPTransaction;
  */
 public class LDAPWritesOnlyUserModelDelegate extends UserModelDelegate {
 
-    private final LDAPStorageProvider provider;
+    private static final Logger logger = Logger.getLogger(LDAPWritesOnlyUserModelDelegate.class);
 
-    public LDAPWritesOnlyUserModelDelegate(UserModel delegate, LDAPStorageProvider provider) {
+    private final LDAPStorageProvider provider;
+    private final RealmModel realm;
+
+    public LDAPWritesOnlyUserModelDelegate(UserModel delegate, LDAPStorageProvider provider, RealmModel realm) {
         super(delegate);
         this.provider = provider;
+        this.realm = realm;
     }
 
     @Override
@@ -131,6 +137,9 @@ public class LDAPWritesOnlyUserModelDelegate extends UserModelDelegate {
 
     @Override
     public void setEmailVerified(boolean verified) {
+        // update emailVerified attribute in LDAP
+        provider.updateAttribute(this.realm, delegate, "emailVerified", String.valueOf(verified));
+
         if (!isAttributeUpdatedInLDAP("emailVerified")) {
             super.setEmailVerified(verified);
         }
@@ -146,6 +155,7 @@ public class LDAPWritesOnlyUserModelDelegate extends UserModelDelegate {
     // Checks if requiredAction was updated in LDAP in this transaction
     protected boolean isRequiredActionUpdatedInLDAP(String requiredActionName) {
         LDAPTransaction transaction = provider.getUserManager().getTransaction(getId());
+        logger.debugf("isRequiredActionUpdatedInLDAP [%s]", transaction);
         if (transaction == null) return false;
         return transaction.isRequiredActionUpdated(requiredActionName);
     }
